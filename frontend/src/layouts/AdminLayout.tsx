@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation } from "react-router-dom"
-import { Activity, Key, Settings, LayoutDashboard, MessageSquare, Menu, X, Image, Video } from "lucide-react"
+import { Activity, Key, Settings, LayoutDashboard, MessageSquare, Menu, X, Image, Video, LogOut } from "lucide-react"
 import { useState } from "react"
+import { clearPanelToken } from "../lib/auth"
 
 export default function AdminLayout() {
   const loc = useLocation()
@@ -55,6 +56,15 @@ export default function AdminLayout() {
             )
           })}
         </nav>
+        <div className="p-4 border-t border-border/40">
+          <button
+            onClick={() => { clearPanelToken(); window.location.reload() }}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-red-500/10 hover:text-red-500 transition-all duration-300 w-full"
+          >
+            <LogOut className="h-4 w-4" />
+            退出登录
+          </button>
+        </div>
       </aside>
 
       <main className="flex-1 flex flex-col overflow-hidden relative">

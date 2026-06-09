@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { BrowserRouter, Routes, Route } from "react-router-dom"
 import { Toaster } from "sonner"
 import AdminLayout from "./layouts/AdminLayout"
@@ -8,8 +9,21 @@ import TokensPage from "./pages/TokensPage"
 import SettingsPage from "./pages/SettingsPage"
 import ImagePage from "./pages/ImagePage"
 import VideoPage from "./pages/VideoPage"
+import LoginPage from "./pages/LoginPage"
+import { isLoggedIn } from "./lib/auth"
 
 function App() {
+  const [loggedIn, setLoggedIn] = useState(isLoggedIn())
+
+  if (!loggedIn) {
+    return (
+      <>
+        <Toaster position="top-center" richColors />
+        <LoginPage onLogin={() => setLoggedIn(true)} />
+      </>
+    )
+  }
+
   return (
     <>
       <Toaster position="top-center" richColors />

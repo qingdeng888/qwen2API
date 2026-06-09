@@ -1,20 +1,32 @@
 /**
- * 读取当前会话凭证。
- * - 优先使用 localStorage 中用户显式保存的 key
- * - 仅在没有任何配置时回退到 "admin"，避免页面切换/刷新后静默丢失凭证
+ * 面板登录认证
+ * 使用独立密码登录，不再使用 API Key 作为会话凭证
  */
-export function getStoredApiKey(): string {
+
+const TOKEN_KEY = 'qwen2api_panel_token'
+
+export function getPanelToken(): string {
   try {
-    const stored = localStorage.getItem('qwen2api_key')
-    if (stored && stored.trim()) return stored.trim()
+    return localStorage.getItem(TOKEN_KEY) || ''
   } catch {
-    // localStorage 不可用时继续走默认值
+    return ''
   }
-  return 'admin'
+}
+
+export function setPanelToken(token: string) {
+  localStorage.setItem(TOKEN_KEY, token)
+}
+
+export function clearPanelToken() {
+  localStorage.removeItem(TOKEN_KEY)
+}
+
+export function isLoggedIn(): boolean {
+  return !!getPanelToken()
 }
 
 export function getAuthHeader(): Record<string, string> {
-  const key = getStoredApiKey()
-  if (!key) return {}
-  return { Authorization: `Bearer ${key}` }
+  const token = getPanelToken()
+  if (!token) return {}
+  return { Authorization: `Bearer ${token}` }
 }

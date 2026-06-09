@@ -13,9 +13,10 @@ import (
 const VERSION = "2.0.0"
 
 type Settings struct {
-	Port    int
-	Workers int
+	Port     int
+	Workers  int
 	AdminKey string
+	PanelPassword string
 
 	MaxInflightPerAccount       int
 	BrowserStreamTimeoutSeconds int
@@ -58,6 +59,7 @@ func Load() *Settings {
 		Port:     envInt("PORT", 7860),
 		Workers:  envInt("WORKERS", 1),
 		AdminKey: envStr("ADMIN_KEY", "admin"),
+		PanelPassword: envStr("PANEL_PASSWORD", ""),
 
 		MaxInflightPerAccount:       envInt("MAX_INFLIGHT_PER_ACCOUNT", 2),
 		BrowserStreamTimeoutSeconds: envInt("BROWSER_STREAM_TIMEOUT_SECONDS", 1800),

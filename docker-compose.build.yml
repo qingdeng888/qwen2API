@@ -1,6 +1,0 @@
-services:
-  qwen2api:
-    image: ${QWEN2API_IMAGE:-qwen2api:local-fix}
-    build:
-      context: .
-      dockerfile: Dockerfile

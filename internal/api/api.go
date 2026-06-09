@@ -501,13 +501,21 @@ func handleCountTokens(w http.ResponseWriter, r *http.Request) {
 // =================== Admin ===================
 
 func handleAdmin(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/admin")
+	path = strings.TrimPrefix(path, "/")
+
+	// Login endpoint does not require auth
+	if path == "login" && r.Method == "POST" {
+		handleAdminLogin(w, r, ctx)
+		return
+	}
+
+	// All other admin endpoints require valid token
 	token := extractAdminToken(r)
 	if token != ctx.Config.AdminKey {
 		writeJSON(w, 401, map[string]interface{}{"error": "unauthorized"})
 		return
 	}
-	path := strings.TrimPrefix(r.URL.Path, "/api/admin")
-	path = strings.TrimPrefix(path, "/")
 
 	switch {
 	case path == "accounts" && r.Method == "GET":
@@ -741,6 +749,30 @@ func extractAdminToken(r *http.Request) string {
 	if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") { return auth[7:] }
 	if k := r.Header.Get("x-api-key"); k != "" { return k }
 	return r.URL.Query().Get("key")
+}
+
+func handleAdminLogin(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
+	data := readJSON(r)
+	if data == nil {
+		writeJSON(w, 400, map[string]interface{}{"error": "invalid JSON"})
+		return
+	}
+	password, _ := data["password"].(string)
+	if password == "" {
+		writeJSON(w, 400, map[string]interface{}{"error": "密码不能为空"})
+		return
+	}
+	// Check against PANEL_PASSWORD (or fallback to ADMIN_KEY)
+	panelPwd := ctx.Config.PanelPassword
+	if panelPwd == "" {
+		panelPwd = ctx.Config.AdminKey
+	}
+	if password != panelPwd {
+		writeJSON(w, 401, map[string]interface{}{"error": "密码错误"})
+		return
+	}
+	// Return the admin key as token for subsequent requests
+	writeJSON(w, 200, map[string]interface{}{"token": ctx.Config.AdminKey, "message": "ok"})
 }
 
 func escJSON(s string) string {

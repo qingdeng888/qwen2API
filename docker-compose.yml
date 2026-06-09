@@ -7,20 +7,8 @@ services:
     restart: unless-stopped
     ports:
       - "${PORT:-7860}:7860"
-    environment:
-      - PORT=7860
-      - ADMIN_KEY=${ADMIN_KEY:-admin}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - MAX_INFLIGHT_PER_ACCOUNT=${MAX_INFLIGHT_PER_ACCOUNT:-2}
-      - MAX_RETRIES=${MAX_RETRIES:-3}
-      - RATE_LIMIT_BASE_COOLDOWN=${RATE_LIMIT_BASE_COOLDOWN:-600}
-      - RATE_LIMIT_MAX_COOLDOWN=${RATE_LIMIT_MAX_COOLDOWN:-3600}
-      - CHAT_ID_PREWARM_TARGET_PER_ACCOUNT=${CHAT_ID_PREWARM_TARGET_PER_ACCOUNT:-5}
-      - CHAT_ID_PREWARM_TTL_SECONDS=${CHAT_ID_PREWARM_TTL_SECONDS:-120}
-      - ACCOUNTS_FILE=/workspace/data/accounts.json
-      - USERS_FILE=/workspace/data/users.json
-      - CONFIG_FILE=/workspace/data/config.json
-      - UPLOADED_FILES_FILE=/workspace/data/uploaded_files.json
+    env_file:
+      - .env
     volumes:
       - ./data:/workspace/data
     healthcheck:
