@@ -1,31 +1,31 @@
+version: "3.8"
+
 services:
   qwen2api:
-    image: ${QWEN2API_IMAGE:-yujunzhixue/qwen2api:latest}
+    build: .
     container_name: qwen2api
     restart: unless-stopped
-    init: true
-    env_file:
-      - path: .env
-        required: false
     ports:
-      - "${HOST_PORT:-7860}:7860"
+      - "${PORT:-7860}:7860"
+    environment:
+      - PORT=7860
+      - ADMIN_KEY=${ADMIN_KEY:-admin}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MAX_INFLIGHT_PER_ACCOUNT=${MAX_INFLIGHT_PER_ACCOUNT:-2}
+      - MAX_RETRIES=${MAX_RETRIES:-3}
+      - RATE_LIMIT_BASE_COOLDOWN=${RATE_LIMIT_BASE_COOLDOWN:-600}
+      - RATE_LIMIT_MAX_COOLDOWN=${RATE_LIMIT_MAX_COOLDOWN:-3600}
+      - CHAT_ID_PREWARM_TARGET_PER_ACCOUNT=${CHAT_ID_PREWARM_TARGET_PER_ACCOUNT:-5}
+      - CHAT_ID_PREWARM_TTL_SECONDS=${CHAT_ID_PREWARM_TTL_SECONDS:-120}
+      - ACCOUNTS_FILE=/workspace/data/accounts.json
+      - USERS_FILE=/workspace/data/users.json
+      - CONFIG_FILE=/workspace/data/config.json
+      - UPLOADED_FILES_FILE=/workspace/data/uploaded_files.json
     volumes:
       - ./data:/workspace/data
-      - ./logs:/workspace/logs
-    shm_size: "512m"
-    environment:
-      PYTHONIOENCODING: utf-8
-      PORT: "7860"
-      WORKERS: "1"
-      LOG_LEVEL: "INFO"
-      BROWSER_POOL_SIZE: "1"
-      MAX_INFLIGHT_PER_ACCOUNT: "2"
-      ACCOUNT_MIN_INTERVAL_MS: "0"
-      REQUEST_JITTER_MIN_MS: "0"
-      REQUEST_JITTER_MAX_MS: "0"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:7860/healthz || exit 1"]
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7860/healthz"]
       interval: 30s
       timeout: 10s
-      start_period: 120s
       retries: 3
+      start_period: 5s
