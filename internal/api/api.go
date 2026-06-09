@@ -152,12 +152,12 @@ func handleChat(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 	resolved := config.ResolveModel(mode.BaseModel)
 	hasTools := hasToolsInRequest(reqData)
 
-	log.Printf("[OAI] model=%s resolved=%s stream=%v tools=%v", modelName, resolved, stream, hasTools)
+	log.Printf("[OAI] model=%s resolved=%s stream=%v tools=%v mode=%s", modelName, resolved, stream, hasTools, mode.Mode)
 
 	opts := upstream.StreamOptions{
 		HasCustomTools:  hasTools,
 		ChatType:        mode.ChatType,
-		EnableSearch:    mode.ChatType == "deep_research",
+		EnableSearch:    mode.ChatType == "deep_research" || mode.Mode == "search",
 	}
 	if mode.ForceThinking {
 		t := true
