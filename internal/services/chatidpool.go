@@ -66,10 +66,10 @@ func (p *ChatIDPool) Acquire(email, model string) string {
 			expiredIDs = append(expiredIDs, e.id)
 			continue
 		}
-		if selected == "" {
-			// Take the first non-expired entry (model-agnostic for flexibility)
+		if selected == "" && e.model == model {
+			// Only use chatID that matches the requested model
 			selected = e.id
-			log.Printf("[预热池] 命中 email=%s chat_id=%s age=%ds", email, selected, int(now.Sub(e.createdAt).Seconds()))
+			log.Printf("[预热池] 命中 email=%s chat_id=%s model=%s age=%ds", email, selected, model, int(now.Sub(e.createdAt).Seconds()))
 		} else {
 			remaining = append(remaining, e)
 		}
