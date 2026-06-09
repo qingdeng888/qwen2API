@@ -536,9 +536,52 @@ func handleAdmin(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 		writeJSON(w, 200, map[string]interface{}{"users": ctx.UsersDB.GetList()})
 	case path == "status" && r.Method == "GET":
 		accounts := ctx.AccountPool.Accounts()
-		valid := 0
-		for _, a := range accounts { if a.Valid { valid++ } }
-		writeJSON(w, 200, map[string]interface{}{"version": config.VERSION, "total_accounts": len(accounts), "valid_accounts": valid, "api_keys_count": len(config.GetAPIKeys())})
+		valid, rateLimited, invalid, inUse := 0, 0, 0, 0
+		perAccount := make([]map[string]interface{}, 0, len(accounts))
+		for _, a := range accounts {
+			st := a.GetStatusCode()
+			switch st {
+			case "valid":
+				valid++
+			case "rate_limited":
+				rateLimited++
+			default:
+				invalid++
+			}
+			a_inflight := a.Inflight
+			inUse += a_inflight
+			perAccount = append(perAccount, map[string]interface{}{
+				"email":                a.Email,
+				"status":              st,
+				"inflight":            a_inflight,
+				"max_inflight":        ctx.Config.MaxInflightPerAccount,
+				"consecutive_failures": 0,
+				"rate_limit_strikes":  a.RateLimitStrikes,
+				"last_request_finished": a.LastRequestFinished,
+			})
+		}
+		chatPoolInfo := map[string]interface{}{
+			"total_cached":       0,
+			"target_per_account": ctx.Config.ChatIDPrewarmTargetPerAccount,
+			"ttl_seconds":        ctx.Config.ChatIDPrewarmTTLSeconds,
+			"per_account":        map[string]int{},
+		}
+		writeJSON(w, 200, map[string]interface{}{
+			"accounts": map[string]interface{}{
+				"total":                    len(accounts),
+				"valid":                    valid,
+				"rate_limited":             rateLimited,
+				"invalid":                  invalid,
+				"in_use":                   inUse,
+				"global_in_use":            inUse,
+				"waiting":                  0,
+				"max_inflight_per_account": ctx.Config.MaxInflightPerAccount,
+				"max_queue_size":           ctx.Config.AccountReadySetThreshold,
+			},
+			"per_account":  perAccount,
+			"chat_id_pool": chatPoolInfo,
+			"runtime":      map[string]interface{}{"asyncio_running_tasks": 0},
+		})
 	case path == "config" && r.Method == "GET":
 		writeJSON(w, 200, ctx.ConfigDB.GetMap())
 	case path == "config" && r.Method == "PUT":
