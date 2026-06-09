@@ -10,6 +10,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -522,9 +523,7 @@ func handleAdmin(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 		return
 	}
 
-	if ctx.Config.LogLevel == "DEBUG" {
-		log.Printf("[Admin] request: %s %s", r.Method, path)
-	}
+	log.Printf("[Admin] %s %s", r.Method, path)
 
 	switch {
 	case path == "accounts" && r.Method == "GET":
@@ -611,7 +610,7 @@ func handleAdmin(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 		writeJSON(w, 200, current)
 	case strings.HasPrefix(path, "accounts/") && r.Method == "DELETE":
 		// DELETE /api/admin/accounts/:email
-		email := strings.TrimPrefix(path, "accounts/")
+		email, _ := url.PathUnescape(strings.TrimPrefix(path, "accounts/"))
 		log.Printf("[Admin] 删除账号 email=%s", email)
 		removed := ctx.AccountPool.RemoveByEmail(email)
 		if removed {
@@ -624,18 +623,22 @@ func handleAdmin(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 		// POST /api/admin/accounts/:email/verify
 		email := strings.TrimPrefix(path, "accounts/")
 		email = strings.TrimSuffix(email, "/verify")
+		email, _ = url.PathUnescape(email)
 		log.Printf("[Admin] 验证账号 email=%s", email)
 		acc := ctx.AccountPool.FindByEmail(email)
 		if acc == nil {
-			writeJSON(w, 404, map[string]interface{}{"valid": false, "error": "account not found"})
+			log.Printf("[Admin] 验证账号未找到 email=%s", email)
+			writeJSON(w, 200, map[string]interface{}{"valid": false, "error": "account not found"})
 			return
 		}
 		// Verify by calling upstream to check token validity
 		status, _, err := ctx.QwenClient.RequestJSON("GET", "/api/models", acc.Token, nil, 15*time.Second)
 		if err != nil {
+			log.Printf("[Admin] 验证账号网络错误 email=%s err=%v", email, err)
 			writeJSON(w, 200, map[string]interface{}{"valid": false, "error": err.Error(), "status_code": "auth_error"})
 			return
 		}
+		log.Printf("[Admin] 验证账号结果 email=%s status=%d", email, status)
 		if status == 200 {
 			writeJSON(w, 200, map[string]interface{}{"valid": true, "status_code": "valid"})
 		} else if status == 401 || status == 403 {
@@ -644,6 +647,13 @@ func handleAdmin(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 		} else {
 			writeJSON(w, 200, map[string]interface{}{"valid": false, "status_code": "unknown", "error": fmt.Sprintf("HTTP %d", status)})
 		}
+	case strings.HasPrefix(path, "accounts/") && strings.HasSuffix(path, "/activate") && r.Method == "POST":
+		// POST /api/admin/accounts/:email/activate — stub
+		email := strings.TrimPrefix(path, "accounts/")
+		email = strings.TrimSuffix(email, "/activate")
+		email, _ = url.PathUnescape(email)
+		log.Printf("[Admin] 激活账号(暂不支持) email=%s", email)
+		writeJSON(w, 200, map[string]interface{}{"ok": false, "error": "Go版暂不支持自动激活，请手动获取token后添加"})
 	case path == "verify" && r.Method == "POST":
 		// POST /api/admin/verify — verify all accounts
 		log.Printf("[Admin] 全量验证账号")
