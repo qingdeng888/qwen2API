@@ -1,47 +1,25 @@
-# Node
-node_modules/
-dist/
-dist-ssr/
-*.local
+# Binaries
+server
+qwen2api
+*.exe
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-
-# Data and Logs
+# Data files
 data/*.json
-logs/
-legacy/
-*legacy*.py
+data/context_files/
+!data/accounts.json
 
-# Tests and scripts
-test_*.py
-backend/selftests/
-add_account.py
-fix_*.py
-
-# Env
+# Environment
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
 
 # IDE
-.vscode/
 .idea/
-.claude/
-.worktrees/
-.gitignore
-*.suo
-*.ntvs
-*.njsproj
-*.sln
-*.sw?
+.vscode/
+*.swp
+*.swo
 
-# local cleanup
-tests/
-docs/superpowers/
-*.tsbuildinfo
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+/dist/
