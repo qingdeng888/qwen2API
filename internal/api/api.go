@@ -278,7 +278,7 @@ func handleAnthropic(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 
 	log.Printf("[Anthropic] model=%s resolved=%s stream=%v", modelName, resolved, stream)
 
-	opts := upstream.StreamOptions{HasCustomTools: hasTools, ChatType: mode.ChatType, EnableSearch: mode.ChatType == "deep_research"}
+	opts := upstream.StreamOptions{HasCustomTools: hasTools, ChatType: mode.ChatType, EnableSearch: mode.ChatType == "deep_research" || mode.Mode == "search"}
 	if mode.ForceThinking {
 		t := true
 		opts.ThinkingEnabled = &t
@@ -363,7 +363,7 @@ func handleGemini(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 	prompt := extractGeminiPrompt(reqData)
 	log.Printf("[Gemini] model=%s resolved=%s stream=%v", model, resolved, stream)
 
-	opts := upstream.StreamOptions{ChatType: mode.ChatType, EnableSearch: mode.ChatType == "deep_research"}
+	opts := upstream.StreamOptions{ChatType: mode.ChatType, EnableSearch: mode.ChatType == "deep_research" || mode.Mode == "search"}
 	executor := upstream.NewExecutor(ctx.QwenClient, ctx.AccountPool, ctx.Config)
 	reqCtx, cancel := context.WithCancel(r.Context())
 	defer cancel()
