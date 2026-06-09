@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react"
-import { Settings2, RefreshCw, ServerCrash, Code, Activity, Save } from "lucide-react"
+import { Settings2, RefreshCw, ServerCrash, Code, Activity, Save, LogOut } from "lucide-react"
 import { Button } from "../components/ui/button"
 import { toast } from "sonner"
 import { getAuthHeader } from "../lib/auth"
+import { clearPanelToken } from "../lib/auth"
 import { API_BASE } from "../lib/api"
 import {
   capabilityBadges,
@@ -61,7 +62,7 @@ export default function SettingsPage() {
         setKeepaliveRunning(Boolean(data.keepalive_running))
         setModelAliases(JSON.stringify(data.model_aliases || {}, null, 2))
       })
-      .catch(() => toast.error("配置获取失败，请检查会话 Key"))
+      .catch(() => toast.error("配置获取失败，请重新登录面板"))
   }, [])
 
   const fetchModels = useCallback(() => {
@@ -245,9 +246,14 @@ export default function SettingsPage() {
           <h2 className="text-2xl font-bold tracking-tight">系统设置</h2>
           <p className="text-muted-foreground">管理控制台认证与网关运行时配置。</p>
         </div>
-        <Button variant="outline" onClick={() => {fetchSettings(); fetchModels(); toast.success("配置已刷新")}}>
-          <RefreshCw className="mr-2 h-4 w-4" /> 刷新配置
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => {fetchSettings(); fetchModels(); toast.success("配置已刷新")}}>
+            <RefreshCw className="mr-2 h-4 w-4" /> 刷新配置
+          </Button>
+          <Button variant="destructive" onClick={() => { clearPanelToken(); window.location.reload() }}>
+            <LogOut className="mr-2 h-4 w-4" /> 退出登录
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 min-w-0">
@@ -283,7 +289,7 @@ export default function SettingsPage() {
               </div>
             ) : modelGroups.length === 0 ? (
               <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-                暂无模型数据。请确认会话 Key 有权限访问 /v1/models。
+                暂无模型数据。请确认面板登录状态正常。
               </div>
             ) : (
               modelGroups.map((group, index) => (

@@ -49,7 +49,7 @@ export default function Dashboard() {
         setStatus(data)
       } catch {
         if (!errOnce) {
-          toast.error("状态获取失败，请在「系统设置」检查您的当前会话 Key。")
+          toast.error("状态获取失败，请重新登录面板。")
           setErrOnce(true)
         }
       }

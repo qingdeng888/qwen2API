@@ -118,7 +118,7 @@ export default function AccountsPage() {
         return res.json()
       })
       .then(data => setAccounts(data.accounts || []))
-      .catch(() => toast.error("\u5237\u65b0\u8d26\u53f7\u5217\u8868\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u4f1a\u8bdd\u5bc6\u94a5"))
+      .catch(() => toast.error("刷新账号列表失败，请重新登录面板"))
   }
 
   useEffect(() => {

@@ -1,6 +1,6 @@
 /**
  * 面板登录认证
- * 使用独立密码登录，不再使用 API Key 作为会话凭证
+ * 使用独立密码登录
  */
 
 const TOKEN_KEY = 'qwen2api_panel_token'

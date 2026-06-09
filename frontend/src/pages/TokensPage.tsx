@@ -19,19 +19,19 @@ export default function TokensPage() {
   const [customKey, setCustomKey] = useState("")
 
   const fetchKeys = () => {
-    fetch(`${API_BASE}/api/admin/keys`, { headers: getAuthHeader() })
+    fetch(`${API_BASE}/api/admin/api-keys`, { headers: getAuthHeader() })
       .then(res => {
         if (!res.ok) throw new Error("Unauthorized")
         return res.json()
       })
       .then(data => {
-        if (Array.isArray(data.items)) {
-          setKeys(data.items)
+        if (Array.isArray(data.keys)) {
+          setKeys(data.keys)
         } else {
-          setKeys((data.keys || []).map((key: string) => ({ key, source: "managed", label: "面板创建 Key" })))
+          setKeys([])
         }
       })
-      .catch(() => toast.error("刷新失败，请检查会话 Key"))
+      .catch(() => toast.error("刷新失败，请重新登录面板"))
   }
 
   useEffect(() => {
@@ -44,26 +44,25 @@ export default function TokensPage() {
       return
     }
 
-    fetch(`${API_BASE}/api/admin/keys`, {
+    const newKey = createMode === "custom" ? customKey.trim() : `sk-${crypto.randomUUID().replace(/-/g, "")}`
+
+    fetch(`${API_BASE}/api/admin/api-keys`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...getAuthHeader() },
-      body: JSON.stringify({
-        mode: createMode,
-        key: createMode === "custom" ? customKey.trim() : "",
-      })
+      body: JSON.stringify({ key: newKey })
     }).then(async res => {
-      const data = await res.json().catch(() => ({}))
       if (res.ok) {
         toast.success(createMode === "custom" ? "自定义 API Key 已添加" : "已生成新的 API Key")
-        if (data.key) copyToClipboard(data.key)
+        copyToClipboard(newKey)
         setCreateOpen(false)
         setCustomKey("")
         setCreateMode("auto")
         fetchKeys()
       } else {
-        toast.error(data.detail || "创建失败，请检查权限")
+        const data = await res.json().catch(() => ({}))
+        toast.error(data.error || "创建失败")
       }
-    }).catch(() => toast.error("创建失败，请检查权限"))
+    }).catch(() => toast.error("创建失败"))
   }
 
   const handleDelete = (item: ApiKeyItem) => {
@@ -72,7 +71,7 @@ export default function TokensPage() {
       return
     }
 
-    fetch(`${API_BASE}/api/admin/keys/${encodeURIComponent(item.key)}`, {
+    fetch(`${API_BASE}/api/admin/api-keys/${encodeURIComponent(item.key)}`, {
       method: "DELETE",
       headers: getAuthHeader()
     }).then(async res => {
@@ -81,7 +80,7 @@ export default function TokensPage() {
         fetchKeys()
       } else {
         const data = await res.json().catch(() => ({}))
-        toast.error(data.detail || "删除失败")
+        toast.error(data.error || "删除失败")
       }
     }).catch(() => toast.error("删除失败"))
   }

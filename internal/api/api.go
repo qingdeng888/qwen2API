@@ -550,6 +550,26 @@ func handleAdmin(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 		data := readJSON(r)
 		key, _ := data["key"].(string)
 		if config.AddAPIKey(key) { writeJSON(w, 200, map[string]interface{}{"status": "ok"}) } else { writeJSON(w, 409, map[string]interface{}{"error": "exists"}) }
+	case strings.HasPrefix(path, "api-keys/") && r.Method == "DELETE":
+		key, _ := url.PathUnescape(strings.TrimPrefix(path, "api-keys/"))
+		result := config.RemoveAPIKey(key)
+		switch result {
+		case "removed":
+			writeJSON(w, 200, map[string]interface{}{"status": "ok"})
+		case "env":
+			writeJSON(w, 403, map[string]interface{}{"error": "cannot delete env key"})
+		default:
+			writeJSON(w, 404, map[string]interface{}{"error": "key not found"})
+		}
+	case path == "settings" && r.Method == "GET":
+		writeJSON(w, 200, map[string]interface{}{
+			"version":                  config.VERSION,
+			"max_inflight_per_account": ctx.Config.MaxInflightPerAccount,
+			"chat_id_pool_target":      ctx.Config.ChatIDPrewarmTargetPerAccount,
+			"chat_id_pool_ttl_seconds": ctx.Config.ChatIDPrewarmTTLSeconds,
+		})
+	case path == "settings" && r.Method == "PUT":
+		writeJSON(w, 200, map[string]interface{}{"ok": true})
 	case path == "users" && r.Method == "GET":
 		writeJSON(w, 200, map[string]interface{}{"users": ctx.UsersDB.GetList()})
 	case path == "status" && r.Method == "GET":
