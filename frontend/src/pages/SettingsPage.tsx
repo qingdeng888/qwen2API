@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { Settings2, RefreshCw, KeyRound, ServerCrash, Code, Activity, Save } from "lucide-react"
+import { Settings2, RefreshCw, ServerCrash, Code, Activity, Save } from "lucide-react"
 import { Button } from "../components/ui/button"
 import { toast } from "sonner"
 import { getAuthHeader } from "../lib/auth"
@@ -30,7 +30,7 @@ interface AdminSettings {
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AdminSettings | null>(null)
-  const [sessionKey, setSessionKey] = useState(() => localStorage.getItem("qwen2api_key") || "")
+
   const [maxInflight, setMaxInflight] = useState(4)
   const [globalMaxInflight, setGlobalMaxInflight] = useState(0)
   const [poolTarget, setPoolTarget] = useState(5)
@@ -79,21 +79,7 @@ export default function SettingsPage() {
     })
   }, [fetchSettings, fetchModels])
 
-  const handleSaveSessionKey = () => {
-    if (!sessionKey.trim()) {
-      toast.error("请输入 Key")
-      return
-    }
-    localStorage.setItem('qwen2api_key', sessionKey.trim())
-    toast.success("Key 已保存到本地，刷新数据...")
-    fetchSettings()
-  }
 
-  const handleClearSessionKey = () => {
-    localStorage.removeItem('qwen2api_key')
-    setSessionKey("")
-    toast.success("Key 已清除")
-  }
 
   const handleSaveConcurrency = () => {
     fetch(`${API_BASE}/api/admin/settings`, {
@@ -265,30 +251,6 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid gap-6 min-w-0">
-        {/* Session Key */}
-        <div className="rounded-xl border bg-card text-card-foreground shadow-sm min-w-0">
-          <div className="flex flex-col space-y-1.5 p-6 border-b bg-muted/30">
-            <div className="flex items-center gap-2">
-              <KeyRound className="h-5 w-5 text-primary" />
-              <h3 className="font-semibold leading-none tracking-tight">当前会话 Key</h3>
-            </div>
-            <p className="text-sm text-muted-foreground">将已有的 API Key 粘贴到此处，控制台将使用它进行所有的管理操作。（保存在浏览器本地）</p>
-          </div>
-          <div className="p-6">
-            <div className="flex gap-2 items-center flex-wrap">
-              <input
-                type="password"
-                value={sessionKey}
-                onChange={e => setSessionKey(e.target.value)}
-                placeholder="sk-qwen-... 或默认管理员密钥 admin"
-                className="flex h-10 flex-1 min-w-[200px] rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-              <Button onClick={handleSaveSessionKey}>保存</Button>
-              <Button variant="ghost" onClick={handleClearSessionKey}>清除</Button>
-            </div>
-          </div>
-        </div>
-
         {/* Connection Info */}
         <div className="rounded-xl border bg-card text-card-foreground shadow-sm min-w-0">
           <div className="flex flex-col space-y-1.5 p-6 border-b bg-muted/30">
