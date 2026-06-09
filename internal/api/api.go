@@ -35,7 +35,7 @@ type AppContext struct {
 }
 
 func RegisterRoutes(mux *http.ServeMux, ctx *AppContext) {
-	// CORS middleware wrapper
+	// CORS middleware wrapper with request logging
 	wrap := func(h http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -44,6 +44,10 @@ func RegisterRoutes(mux *http.ServeMux, ctx *AppContext) {
 			if r.Method == "OPTIONS" {
 				w.WriteHeader(204)
 				return
+			}
+			// Request logging when LOG_LEVEL=DEBUG
+			if ctx.Config.LogLevel == "DEBUG" {
+				log.Printf("[HTTP] %s %s from=%s", r.Method, r.URL.Path, r.RemoteAddr)
 			}
 			h(w, r)
 		}
@@ -513,8 +517,13 @@ func handleAdmin(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 	// All other admin endpoints require valid token
 	token := extractAdminToken(r)
 	if token != ctx.Config.AdminKey {
+		log.Printf("[Admin] unauthorized: path=%s token=%s", path, trunc(token, 8))
 		writeJSON(w, 401, map[string]interface{}{"error": "unauthorized"})
 		return
+	}
+
+	if ctx.Config.LogLevel == "DEBUG" {
+		log.Printf("[Admin] request: %s %s", r.Method, path)
 	}
 
 	switch {
@@ -522,18 +531,20 @@ func handleAdmin(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 		accounts := ctx.AccountPool.Accounts()
 		result := make([]map[string]interface{}, 0)
 		for _, acc := range accounts {
-			result = append(result, map[string]interface{}{"email": acc.Email, "status": acc.GetStatusCode(), "source": acc.Source, "inflight": acc.Inflight})
+			result = append(result, map[string]interface{}{"email": acc.Email, "status": acc.GetStatusCode(), "status_code": acc.GetStatusCode(), "source": acc.Source, "inflight": acc.Inflight, "valid": acc.Valid})
 		}
+		log.Printf("[Admin] 获取账号列表 total=%d", len(result))
 		writeJSON(w, 200, map[string]interface{}{"accounts": result, "total": len(result)})
 	case path == "accounts" && r.Method == "POST":
 		data := readJSON(r)
-		if data == nil { writeJSON(w, 400, map[string]interface{}{"error": "invalid JSON"}); return }
-		token, _ := data["token"].(string)
+		if data == nil { writeJSON(w, 400, map[string]interface{}{"error": "invalid JSON", "ok": false}); return }
+		tk, _ := data["token"].(string)
 		email, _ := data["email"].(string)
-		if token == "" { writeJSON(w, 400, map[string]interface{}{"error": "token required"}); return }
-		ctx.AccountPool.AddAccount(&pool.Account{Email: email, Token: token, Valid: true, StatusCode: "valid", Source: "managed"})
+		if tk == "" { writeJSON(w, 400, map[string]interface{}{"error": "token required", "ok": false}); return }
+		log.Printf("[Admin] 添加账号 email=%s token=%s...", email, trunc(tk, 10))
+		ctx.AccountPool.AddAccount(&pool.Account{Email: email, Token: tk, Valid: true, StatusCode: "valid", Source: "managed"})
 		ctx.AccountPool.SaveToDB()
-		writeJSON(w, 200, map[string]interface{}{"status": "ok"})
+		writeJSON(w, 200, map[string]interface{}{"ok": true, "status": "ok", "email": email})
 	case path == "api-keys" && r.Method == "GET":
 		writeJSON(w, 200, map[string]interface{}{"keys": config.ListAPIKeyItems()})
 	case path == "api-keys" && r.Method == "POST":
@@ -754,11 +765,13 @@ func extractAdminToken(r *http.Request) string {
 func handleAdminLogin(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 	data := readJSON(r)
 	if data == nil {
+		log.Printf("[Admin] login: invalid JSON body")
 		writeJSON(w, 400, map[string]interface{}{"error": "invalid JSON"})
 		return
 	}
 	password, _ := data["password"].(string)
 	if password == "" {
+		log.Printf("[Admin] login: empty password")
 		writeJSON(w, 400, map[string]interface{}{"error": "密码不能为空"})
 		return
 	}
@@ -768,9 +781,11 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 		panelPwd = ctx.Config.AdminKey
 	}
 	if password != panelPwd {
+		log.Printf("[Admin] login: wrong password attempt from %s", r.RemoteAddr)
 		writeJSON(w, 401, map[string]interface{}{"error": "密码错误"})
 		return
 	}
+	log.Printf("[Admin] login: success from %s", r.RemoteAddr)
 	// Return the admin key as token for subsequent requests
 	writeJSON(w, 200, map[string]interface{}{"token": ctx.Config.AdminKey, "message": "ok"})
 }
@@ -780,4 +795,11 @@ func escJSON(s string) string {
 	s = strings.ReplaceAll(s, `"`, `\"`)
 	s = strings.ReplaceAll(s, "\n", `\n`)
 	return s
+}
+
+func trunc(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }
