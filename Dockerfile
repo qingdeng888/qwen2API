@@ -35,9 +35,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=go-builder /qwen2api /usr/local/bin/qwen2api
 COPY --from=frontend-builder /app/dist ./frontend/dist
-COPY data/ ./data/
 
+# Create data directory (will be mounted as volume in production)
 RUN mkdir -p /workspace/data /workspace/logs
+# Provide default empty accounts file
+RUN echo '[]' > /workspace/data/accounts.json
 
 ENV PORT=7860
 EXPOSE 7860
