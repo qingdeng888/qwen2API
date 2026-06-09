@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/qingdeng888/qwen2API/internal/toolcall"
 	"github.com/qingdeng888/qwen2API/internal/upstream"
 )
 
@@ -64,6 +65,40 @@ func BuildNonStreamResponse(model, content, thinking string) map[string]interfac
 		"id": "chatcmpl-" + NewUUID()[:12], "object": "chat.completion",
 		"created": time.Now().Unix(), "model": model,
 		"choices": []map[string]interface{}{{"index": 0, "message": msg, "finish_reason": "stop"}},
+		"usage":   map[string]interface{}{"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+	}
+}
+
+// BuildToolCallResponse builds a non-stream response with tool_calls
+func BuildToolCallResponse(model, content, thinking string, toolCalls []toolcall.ToolCall) map[string]interface{} {
+	msg := map[string]interface{}{"role": "assistant"}
+	if content != "" {
+		msg["content"] = content
+	} else {
+		msg["content"] = nil
+	}
+	if thinking != "" {
+		msg["reasoning_content"] = thinking
+	}
+
+	// Build tool_calls array in OpenAI format
+	tc := make([]map[string]interface{}, 0, len(toolCalls))
+	for _, call := range toolCalls {
+		tc = append(tc, map[string]interface{}{
+			"id":   call.ID,
+			"type": "function",
+			"function": map[string]interface{}{
+				"name":      call.Name,
+				"arguments": call.Arguments,
+			},
+		})
+	}
+	msg["tool_calls"] = tc
+
+	return map[string]interface{}{
+		"id": "chatcmpl-" + NewUUID()[:12], "object": "chat.completion",
+		"created": time.Now().Unix(), "model": model,
+		"choices": []map[string]interface{}{{"index": 0, "message": msg, "finish_reason": "tool_calls"}},
 		"usage":   map[string]interface{}{"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
 	}
 }

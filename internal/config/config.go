@@ -97,21 +97,12 @@ func Load() *Settings {
 	}
 }
 
-// Model mapping - maps common model names to upstream Qwen model IDs
+// Model mapping - only keeps essential aliases, passes through qwen model names directly
 var ModelMap = map[string]string{
-	"gpt-4o": "qwen-max-latest", "gpt-4o-mini": "qwen-turbo-latest",
-	"gpt-4-turbo": "qwen-max-latest", "gpt-4": "qwen-max-latest",
-	"gpt-4.1": "qwen-max-latest", "gpt-4.1-mini": "qwen-turbo-latest",
-	"gpt-3.5-turbo": "qwen-turbo-latest", "gpt-5": "qwen-max-latest",
-	"o1": "qwen-max-latest", "o1-mini": "qwen-turbo-latest",
-	"o3": "qwen-max-latest", "o3-mini": "qwen-turbo-latest",
-	"claude-opus-4-6": "qwen-max-latest", "claude-sonnet-4-5": "qwen-max-latest",
-	"claude-3-opus": "qwen-max-latest", "claude-3.5-sonnet": "qwen-max-latest",
-	"claude-3-sonnet": "qwen-max-latest", "claude-3-haiku": "qwen-turbo-latest",
-	"gemini-2.5-pro": "qwen-max-latest", "gemini-2.5-flash": "qwen-turbo-latest",
-	"qwen": "qwen-max-latest", "qwen-max": "qwen-max-latest",
-	"qwen-plus": "qwen-plus-latest", "qwen-turbo": "qwen-turbo-latest",
-	"deepseek-chat": "qwen-max-latest", "deepseek-reasoner": "qwen-max-latest",
+	"qwen":       "qwen-max-latest",
+	"qwen-max":   "qwen-max-latest",
+	"qwen-plus":  "qwen-plus-latest",
+	"qwen-turbo": "qwen-turbo-latest",
 }
 
 func ResolveModel(name string) string {

@@ -13,8 +13,19 @@ type ToolCall struct {
 	Arguments string
 }
 
+// StripQNMLBlocks removes QNML tool call markup from visible text
+func StripQNMLBlocks(text string) string {
+	re := regexp.MustCompile(`(?s)<\|QNML\|tool_calls>.*?</\|QNML\|tool_calls>`)
+	result := re.ReplaceAllString(text, "")
+	return strings.TrimSpace(result)
+}
+
 // Parse attempts to extract tool calls from model output (multi-format: QNML, JSON, XML)
 func Parse(text string) []ToolCall {
+	// Try QNML format first (primary format used by this system)
+	if calls := ParseQNMLToolCalls(text); len(calls) > 0 {
+		return calls
+	}
 	if calls := parseQNML(text); len(calls) > 0 {
 		return calls
 	}

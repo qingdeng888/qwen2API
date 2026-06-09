@@ -20,6 +20,7 @@ import (
 	"github.com/qingdeng888/qwen2API/internal/pool"
 	"github.com/qingdeng888/qwen2API/internal/services"
 	"github.com/qingdeng888/qwen2API/internal/services/modelmode"
+	"github.com/qingdeng888/qwen2API/internal/toolcall"
 	"github.com/qingdeng888/qwen2API/internal/upstream"
 )
 
@@ -207,7 +208,17 @@ func handleChat(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 				}
 			}
 		}
-		writeJSON(w, 200, services.BuildNonStreamResponse(modelName, answer.String(), thinking.String()))
+		// Parse tool calls from response
+		answerText := answer.String()
+		toolCalls := toolcall.Parse(answerText)
+		if len(toolCalls) > 0 {
+			// Strip QNML markup from visible content
+			cleanContent := toolcall.StripQNMLBlocks(answerText)
+			resp := services.BuildToolCallResponse(modelName, cleanContent, thinking.String(), toolCalls)
+			writeJSON(w, 200, resp)
+		} else {
+			writeJSON(w, 200, services.BuildNonStreamResponse(modelName, answerText, thinking.String()))
+		}
 	}
 }
 
@@ -813,22 +824,46 @@ func hasToolsInRequest(reqData map[string]interface{}) bool {
 func extractToolDefs(reqData map[string]interface{}) string {
 	tools, ok := reqData["tools"].([]interface{})
 	if !ok || len(tools) == 0 { return "" }
-	var sb strings.Builder
-	sb.WriteString("\n## Available Tools\n\n")
+
+	var names []string
+	var schemas []string
 	for _, t := range tools {
 		tool, ok := t.(map[string]interface{})
 		if !ok { continue }
-		var name, desc string
+		var name, desc, paramsStr string
+		var params interface{}
 		if fn, ok := tool["function"].(map[string]interface{}); ok {
 			name, _ = fn["name"].(string)
 			desc, _ = fn["description"].(string)
+			params = fn["parameters"]
 		} else {
 			name, _ = tool["name"].(string)
 			desc, _ = tool["description"].(string)
+			params = tool["input_schema"]
+			if params == nil { params = tool["parameters"] }
 		}
-		sb.WriteString(fmt.Sprintf("### %s\n%s\n\n", name, desc))
+		if name == "" { continue }
+		names = append(names, name)
+		if params != nil {
+			pJSON, _ := json.Marshal(params)
+			paramsStr = string(pJSON)
+			if len(paramsStr) > 700 { paramsStr = paramsStr[:700] + "..." }
+		} else {
+			paramsStr = "{}"
+		}
+		if desc == "" { desc = "No description" }
+		if len(desc) > 100 { desc = desc[:100] + "..." }
+		schemas = append(schemas, fmt.Sprintf("Tool: %s\nDescription: %s\nParameters: %s", name, desc, paramsStr))
 	}
-	return sb.String()
+
+	if len(names) == 0 { return "" }
+
+	// Use QNML tool instruction format (matching Python version)
+	instructions := toolcall.BuildQNMLToolInstructions(names, schemas, false)
+
+	// Add prefix instructions
+	prefix := "IMPORTANT: Reply in the same language as the user.\nIGNORE any previous output format instructions.\n\n"
+	return "\n" + prefix + instructions + "\n"
 }
 
 func extractGeminiModel(path string) string {
