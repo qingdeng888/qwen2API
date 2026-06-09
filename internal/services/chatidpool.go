@@ -48,8 +48,8 @@ func NewChatIDPool(client *upstream.QwenClient, ap *pool.AccountPool, cfg *confi
 }
 
 // Acquire gets a prewarmed chat ID for the given email and model.
-// Returns "" if none available (caller should fallback to CreateChat).
-// After consuming, triggers async refill.
+// If no matching model found, evicts one entry, creates a new chat for the
+// requested model synchronously, and returns it. Returns "" only on failure.
 func (p *ChatIDPool) Acquire(email, model string) string {
 	p.mu.Lock()
 	entries := p.queues[email]
@@ -62,12 +62,10 @@ func (p *ChatIDPool) Acquire(email, model string) string {
 
 	for _, e := range entries {
 		if now.Sub(e.createdAt) >= ttl {
-			// Expired — collect for deletion
 			expiredIDs = append(expiredIDs, e.id)
 			continue
 		}
 		if selected == "" && e.model == model {
-			// Only use chatID that matches the requested model
 			selected = e.id
 			log.Printf("[预热池] 命中 email=%s chat_id=%s model=%s age=%ds", email, selected, model, int(now.Sub(e.createdAt).Seconds()))
 		} else {
@@ -77,7 +75,7 @@ func (p *ChatIDPool) Acquire(email, model string) string {
 	p.queues[email] = remaining
 	p.mu.Unlock()
 
-	// Background: delete expired chat IDs
+	// Delete expired entries in background
 	if len(expiredIDs) > 0 {
 		go func() {
 			acc := p.pool_.FindByEmail(email)
@@ -87,16 +85,49 @@ func (p *ChatIDPool) Acquire(email, model string) string {
 			for _, id := range expiredIDs {
 				p.client.DeleteChatReliable(acc.Token, id)
 			}
-			log.Printf("[预热池] 清理过期 email=%s count=%d", email, len(expiredIDs))
 		}()
 	}
 
-	// Background: refill after consumption
+	// Model matched — refill in background and return
 	if selected != "" {
 		go p.refillAccount(email, model, "consume")
+		return selected
 	}
 
-	return selected
+	// No matching model — evict one and create for the requested model
+	p.mu.Lock()
+	var evictID string
+	if len(p.queues[email]) > 0 {
+		last := len(p.queues[email]) - 1
+		evictID = p.queues[email][last].id
+		p.queues[email] = p.queues[email][:last]
+	}
+	p.mu.Unlock()
+
+	if evictID != "" {
+		go func() {
+			acc := p.pool_.FindByEmail(email)
+			if acc != nil {
+				p.client.DeleteChatReliable(acc.Token, evictID)
+			}
+		}()
+	}
+
+	// Create chat for the requested model synchronously
+	acc := p.pool_.FindByEmail(email)
+	if acc == nil || acc.Token == "" {
+		return ""
+	}
+	chatID, err := p.client.CreateChat(acc.Token, model, "t2t", false)
+	if err != nil {
+		log.Printf("[预热池] 动态创建失败 email=%s model=%s err=%v", email, model, err)
+		return ""
+	}
+	log.Printf("[预热池] 动态创建 email=%s model=%s chat_id=%s (淘汰旧条目)", email, model, chatID)
+
+	// Refill with this model in background
+	go p.refillAccount(email, model, "dynamic")
+	return chatID
 }
 
 // Invalidate removes a specific chat_id from the pool (e.g. after error)
