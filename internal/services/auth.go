@@ -37,7 +37,7 @@ func ResolveAuth(r *http.Request, usersDB *database.JsonDB, cfg *config.Settings
 		return nil, 401, "Invalid API Key"
 	}
 	keys := config.GetAPIKeys()
-	if len(keys) > 0 && token != cfg.AdminKey {
+	if len(keys) > 0 {
 		if !config.IsValidAPIKey(token) {
 			users := usersDB.GetList()
 			if findUser(users, token) == nil {

@@ -40,7 +40,7 @@
 ```bash
 docker build -t qwen2api .
 docker run -d -p 7860:7860 \
-  -e ADMIN_KEY=your-admin-key \
+  -e PANEL_PASSWORD=your-panel-password \
   -e QWEN_ACCOUNT_1="your-token;email@example.com" \
   -v ./data:/workspace/data \
   qwen2api
@@ -53,7 +53,7 @@ docker run -d -p 7860:7860 \
 go build -o qwen2api ./cmd/server
 
 # Run
-export ADMIN_KEY=your-admin-key
+export PANEL_PASSWORD=your-panel-password
 export QWEN_ACCOUNT_1="your-token;email@example.com"
 ./qwen2api
 ```
@@ -63,7 +63,7 @@ export QWEN_ACCOUNT_1="your-token;email@example.com"
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | 7860 | HTTP listen port |
-| `ADMIN_KEY` | admin | Admin dashboard authentication key |
+| `PANEL_PASSWORD` | admin | Web管理面板登录密码 |
 | `QWEN_API_KEY` | — | Client API key (comma-separated for multiple) |
 | `QWEN_ACCOUNT_N` | — | Qwen accounts (format: `token;email;password`) |
 | `MAX_INFLIGHT_PER_ACCOUNT` | 2 | Max concurrent requests per account |

@@ -516,7 +516,7 @@ func handleAdmin(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 
 	// All other admin endpoints require valid token
 	token := extractAdminToken(r)
-	if token != ctx.Config.AdminKey {
+	if token != ctx.Config.PanelPassword {
 		log.Printf("[Admin] unauthorized: path=%s token=%s", path, trunc(token, 8))
 		writeJSON(w, 401, map[string]interface{}{"error": "unauthorized"})
 		return
@@ -775,19 +775,16 @@ func handleAdminLogin(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 		writeJSON(w, 400, map[string]interface{}{"error": "密码不能为空"})
 		return
 	}
-	// Check against PANEL_PASSWORD (or fallback to ADMIN_KEY)
+	// Check against PANEL_PASSWORD
 	panelPwd := ctx.Config.PanelPassword
-	if panelPwd == "" {
-		panelPwd = ctx.Config.AdminKey
-	}
 	if password != panelPwd {
 		log.Printf("[Admin] login: wrong password attempt from %s", r.RemoteAddr)
 		writeJSON(w, 401, map[string]interface{}{"error": "密码错误"})
 		return
 	}
 	log.Printf("[Admin] login: success from %s", r.RemoteAddr)
-	// Return the admin key as token for subsequent requests
-	writeJSON(w, 200, map[string]interface{}{"token": ctx.Config.AdminKey, "message": "ok"})
+	// Return the panel password as token for subsequent admin requests
+	writeJSON(w, 200, map[string]interface{}{"token": ctx.Config.PanelPassword, "message": "ok"})
 }
 
 func escJSON(s string) string {
