@@ -661,10 +661,10 @@ func handleAdmin(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 			})
 		}
 		chatPoolInfo := map[string]interface{}{
-			"total_cached":       0,
+			"total_cached":       ctx.ChatIDPool.TotalSize(),
 			"target_per_account": ctx.Config.ChatIDPrewarmTargetPerAccount,
 			"ttl_seconds":        ctx.Config.ChatIDPrewarmTTLSeconds,
-			"per_account":        map[string]int{},
+			"per_account":        ctx.ChatIDPool.PerAccountSizes(),
 		}
 		writeJSON(w, 200, map[string]interface{}{
 			"accounts": map[string]interface{}{
