@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 const VERSION = "2.0.0"
@@ -96,21 +97,21 @@ func Load() *Settings {
 	}
 }
 
-// Model mapping
+// Model mapping - maps common model names to upstream Qwen model IDs
 var ModelMap = map[string]string{
-	"gpt-4o": "qwen3.6-plus", "gpt-4o-mini": "qwen3.5-flash",
-	"gpt-4-turbo": "qwen3.6-plus", "gpt-4": "qwen3.6-plus",
-	"gpt-4.1": "qwen3.6-plus", "gpt-4.1-mini": "qwen3.5-flash",
-	"gpt-3.5-turbo": "qwen3.5-flash", "gpt-5": "qwen3.6-plus",
-	"o1": "qwen3.6-plus", "o1-mini": "qwen3.5-flash",
-	"o3": "qwen3.6-plus", "o3-mini": "qwen3.5-flash",
-	"claude-opus-4-6": "qwen3.6-plus", "claude-sonnet-4-5": "qwen3.6-plus",
-	"claude-3-opus": "qwen3.6-plus", "claude-3.5-sonnet": "qwen3.6-plus",
-	"claude-3-sonnet": "qwen3.6-plus", "claude-3-haiku": "qwen3.5-flash",
-	"gemini-2.5-pro": "qwen3.6-plus", "gemini-2.5-flash": "qwen3.5-flash",
-	"qwen": "qwen3.6-plus", "qwen-max": "qwen3.6-plus",
-	"qwen-plus": "qwen3.6-plus", "qwen-turbo": "qwen3.5-flash",
-	"deepseek-chat": "qwen3.6-plus", "deepseek-reasoner": "qwen3.6-plus",
+	"gpt-4o": "qwen-max-latest", "gpt-4o-mini": "qwen-turbo-latest",
+	"gpt-4-turbo": "qwen-max-latest", "gpt-4": "qwen-max-latest",
+	"gpt-4.1": "qwen-max-latest", "gpt-4.1-mini": "qwen-turbo-latest",
+	"gpt-3.5-turbo": "qwen-turbo-latest", "gpt-5": "qwen-max-latest",
+	"o1": "qwen-max-latest", "o1-mini": "qwen-turbo-latest",
+	"o3": "qwen-max-latest", "o3-mini": "qwen-turbo-latest",
+	"claude-opus-4-6": "qwen-max-latest", "claude-sonnet-4-5": "qwen-max-latest",
+	"claude-3-opus": "qwen-max-latest", "claude-3.5-sonnet": "qwen-max-latest",
+	"claude-3-sonnet": "qwen-max-latest", "claude-3-haiku": "qwen-turbo-latest",
+	"gemini-2.5-pro": "qwen-max-latest", "gemini-2.5-flash": "qwen-turbo-latest",
+	"qwen": "qwen-max-latest", "qwen-max": "qwen-max-latest",
+	"qwen-plus": "qwen-plus-latest", "qwen-turbo": "qwen-turbo-latest",
+	"deepseek-chat": "qwen-max-latest", "deepseek-reasoner": "qwen-max-latest",
 }
 
 func ResolveModel(name string) string {
@@ -118,6 +119,37 @@ func ResolveModel(name string) string {
 		return m
 	}
 	return name
+}
+
+// GetDefaultModel returns the default upstream model for prewarming
+func GetDefaultModel() string {
+	return "qwen-max-latest"
+}
+
+// DynamicModels stores models fetched from upstream (cached 5 min)
+var (
+	dynamicModelsMu   sync.RWMutex
+	dynamicModels     []map[string]interface{}
+	dynamicModelsTime int64
+)
+
+func GetDynamicModels() []map[string]interface{} {
+	dynamicModelsMu.RLock()
+	defer dynamicModelsMu.RUnlock()
+	return dynamicModels
+}
+
+func SetDynamicModels(models []map[string]interface{}) {
+	dynamicModelsMu.Lock()
+	defer dynamicModelsMu.Unlock()
+	dynamicModels = models
+	dynamicModelsTime = time.Now().Unix()
+}
+
+func DynamicModelsCacheExpired() bool {
+	dynamicModelsMu.RLock()
+	defer dynamicModelsMu.RUnlock()
+	return dynamicModelsTime == 0 || time.Now().Unix()-dynamicModelsTime > 300
 }
 
 // API Key management

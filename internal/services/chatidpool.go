@@ -12,6 +12,7 @@ import (
 
 type chatIDEntry struct {
 	id        string
+	model     string
 	createdAt time.Time
 }
 
@@ -20,7 +21,7 @@ type ChatIDPool struct {
 	client *upstream.QwenClient
 	pool_  *pool.AccountPool
 	cfg    *config.Settings
-	cache  map[string][]chatIDEntry
+	cache  map[string][]chatIDEntry // email -> list of prewarmed chat IDs
 	stopCh chan struct{}
 }
 
@@ -28,19 +29,30 @@ func NewChatIDPool(client *upstream.QwenClient, ap *pool.AccountPool, cfg *confi
 	return &ChatIDPool{client: client, pool_: ap, cfg: cfg, cache: make(map[string][]chatIDEntry), stopCh: make(chan struct{})}
 }
 
+// Acquire gets a prewarmed chat ID for the given email and model
 func (p *ChatIDPool) Acquire(email, model string) string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	entries := p.cache[email]
 	ttl := time.Duration(p.cfg.ChatIDPrewarmTTLSeconds) * time.Second
 	now := time.Now()
+
 	for i, e := range entries {
-		if now.Sub(e.createdAt) < ttl {
+		// Must match model AND not be expired
+		if e.model == model && now.Sub(e.createdAt) < ttl {
 			p.cache[email] = append(entries[:i], entries[i+1:]...)
 			return e.id
 		}
 	}
-	p.cache[email] = nil
+
+	// Clean expired entries
+	valid := entries[:0]
+	for _, e := range entries {
+		if now.Sub(e.createdAt) < ttl {
+			valid = append(valid, e)
+		}
+	}
+	p.cache[email] = valid
 	return ""
 }
 
@@ -68,15 +80,30 @@ func (p *ChatIDPool) Stop() {
 
 func (p *ChatIDPool) prewarm() {
 	accounts := p.pool_.Accounts()
+	if len(accounts) == 0 {
+		return
+	}
+
+	// Prewarm the default model for each account
+	defaultModel := config.GetDefaultModel()
 	sem := make(chan struct{}, p.cfg.ChatIDPrewarmMaxConcurrency)
 	var wg sync.WaitGroup
+
 	for _, acc := range accounts {
 		if !acc.Valid || acc.IsRateLimited() {
 			continue
 		}
 		p.mu.Lock()
-		needed := p.cfg.ChatIDPrewarmTargetPerAccount - len(p.cache[acc.Email])
+		// Count entries for this model specifically
+		count := 0
+		for _, e := range p.cache[acc.Email] {
+			if e.model == defaultModel {
+				count++
+			}
+		}
+		needed := p.cfg.ChatIDPrewarmTargetPerAccount - count
 		p.mu.Unlock()
+
 		if needed <= 0 {
 			continue
 		}
@@ -86,12 +113,12 @@ func (p *ChatIDPool) prewarm() {
 			go func(a *pool.Account) {
 				defer wg.Done()
 				defer func() { <-sem }()
-				id, err := p.client.CreateChat(a.Token, "qwen3.6-plus", "t2t", false)
+				id, err := p.client.CreateChat(a.Token, defaultModel, "t2t", false)
 				if err != nil {
 					return
 				}
 				p.mu.Lock()
-				p.cache[a.Email] = append(p.cache[a.Email], chatIDEntry{id: id, createdAt: time.Now()})
+				p.cache[a.Email] = append(p.cache[a.Email], chatIDEntry{id: id, model: defaultModel, createdAt: time.Now()})
 				p.mu.Unlock()
 			}(acc)
 		}

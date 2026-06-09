@@ -362,19 +362,64 @@ func handleGemini(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 
 // =================== Models ===================
 
-func handleModels(w http.ResponseWriter, _ *http.Request, _ *AppContext) {
+func handleModels(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
+	// Try to fetch dynamic models from upstream (cached 5 min)
+	if config.DynamicModelsCacheExpired() {
+		// Get a token from pool to query upstream
+		accounts := ctx.AccountPool.Accounts()
+		for _, acc := range accounts {
+			if acc.Valid && acc.Token != "" {
+				status, body, err := ctx.QwenClient.RequestJSON("GET", "/api/models", acc.Token, nil, 15*time.Second)
+				if err == nil && status == 200 {
+					var result struct {
+						Data []map[string]interface{} `json:"data"`
+					}
+					if json.Unmarshal([]byte(body), &result) == nil && len(result.Data) > 0 {
+						config.SetDynamicModels(result.Data)
+						log.Printf("[Models] 从上游获取 %d 个模型", len(result.Data))
+					}
+				}
+				break
+			}
+		}
+	}
+
+	// Build model list from dynamic models + static aliases
 	models := make([]map[string]interface{}, 0)
 	seen := make(map[string]bool)
+
+	// Add dynamic upstream models first
+	for _, m := range config.GetDynamicModels() {
+		id, _ := m["id"].(string)
+		if id == "" {
+			continue
+		}
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		entry := map[string]interface{}{
+			"id":       id,
+			"object":   "model",
+			"created":  1700000000,
+			"owned_by": "qwen",
+		}
+		// Copy capabilities if present
+		if caps, ok := m["capabilities"]; ok {
+			entry["capabilities"] = caps
+		}
+		models = append(models, entry)
+	}
+
+	// Add static aliases
 	for alias := range config.ModelMap {
-		if seen[alias] { continue }
+		if seen[alias] {
+			continue
+		}
 		seen[alias] = true
 		models = append(models, map[string]interface{}{"id": alias, "object": "model", "created": 1700000000, "owned_by": "qwen"})
 	}
-	for _, m := range []string{"qwen3.6-plus", "qwen3.5-flash"} {
-		if !seen[m] {
-			models = append(models, map[string]interface{}{"id": m, "object": "model", "created": 1700000000, "owned_by": "qwen"})
-		}
-	}
+
 	writeJSON(w, 200, map[string]interface{}{"object": "list", "data": models})
 }
 
@@ -417,7 +462,8 @@ func handleImages(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 	executor := upstream.NewExecutor(ctx.QwenClient, ctx.AccountPool, ctx.Config)
 	reqCtx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
 	defer cancel()
-	eventCh := executor.StreamWithRetry(reqCtx, "qwen3.6-plus", prompt, opts)
+	imgModel := config.ResolveModel("qwen-max-latest")
+	eventCh := executor.StreamWithRetry(reqCtx, imgModel, prompt, opts)
 	var content strings.Builder
 	for item := range eventCh {
 		if item.Error != nil { writeJSON(w, 500, map[string]interface{}{"error": map[string]interface{}{"message": item.Error.Error()}}); return }
@@ -443,7 +489,8 @@ func handleVideos(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 	executor := upstream.NewExecutor(ctx.QwenClient, ctx.AccountPool, ctx.Config)
 	reqCtx, cancel := context.WithTimeout(r.Context(), 300*time.Second)
 	defer cancel()
-	eventCh := executor.StreamWithRetry(reqCtx, "qwen3.6-plus", prompt, opts)
+	vidModel := config.ResolveModel("qwen-max-latest")
+	eventCh := executor.StreamWithRetry(reqCtx, vidModel, prompt, opts)
 	var content strings.Builder
 	for item := range eventCh {
 		if item.Error != nil { writeJSON(w, 500, map[string]interface{}{"error": map[string]interface{}{"message": item.Error.Error()}}); return }
