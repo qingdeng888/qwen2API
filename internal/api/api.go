@@ -548,8 +548,23 @@ func handleAdmin(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 		writeJSON(w, 200, map[string]interface{}{"keys": config.ListAPIKeyItems()})
 	case path == "api-keys" && r.Method == "POST":
 		data := readJSON(r)
+		if data == nil {
+			log.Printf("[Admin] api-keys POST: body为空或JSON解析失败")
+			writeJSON(w, 400, map[string]interface{}{"error": "invalid JSON"})
+			return
+		}
 		key, _ := data["key"].(string)
-		if config.AddAPIKey(key) { writeJSON(w, 200, map[string]interface{}{"status": "ok"}) } else { writeJSON(w, 409, map[string]interface{}{"error": "exists"}) }
+		if key == "" {
+			log.Printf("[Admin] api-keys POST: key字段为空")
+			writeJSON(w, 400, map[string]interface{}{"error": "key is required"})
+			return
+		}
+		log.Printf("[Admin] 添加API Key: %s", trunc(key, 12))
+		if config.AddAPIKey(key) {
+			writeJSON(w, 200, map[string]interface{}{"status": "ok"})
+		} else {
+			writeJSON(w, 409, map[string]interface{}{"error": "key already exists"})
+		}
 	case strings.HasPrefix(path, "api-keys/") && r.Method == "DELETE":
 		key, _ := url.PathUnescape(strings.TrimPrefix(path, "api-keys/"))
 		result := config.RemoveAPIKey(key)
