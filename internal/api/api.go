@@ -165,9 +165,6 @@ func handleChat(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 	}
 
 	executor := upstream.NewExecutor(ctx.QwenClient, ctx.AccountPool, ctx.Config)
-	reqCtx, cancel := context.WithCancel(r.Context())
-	defer cancel()
-	eventCh := executor.StreamWithRetry(reqCtx, resolved, prompt, opts)
 
 	if stream {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -176,7 +173,11 @@ func handleChat(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 		w.Header().Set("X-Accel-Buffering", "no")
 		flusher, _ := w.(http.Flusher)
 
-		translator := services.NewOpenAITranslator(modelName)
+		translator := services.NewOpenAIStreamTranslator(modelName)
+		reqCtx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+		eventCh := executor.StreamWithRetry(reqCtx, resolved, prompt, opts)
+
 		for item := range eventCh {
 			if item.Error != nil {
 				fmt.Fprintf(w, "data: {\"error\":{\"message\":\"%s\"}}\n\n", escJSON(item.Error.Error()))
@@ -190,10 +191,38 @@ func handleChat(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 				}
 			}
 		}
-		fmt.Fprint(w, translator.FinishChunk())
+
+		// Check if answer contains tool calls
+		answerText := translator.Answer.String()
+		toolCalls := toolcall.Parse(answerText)
+		if len(toolCalls) > 0 {
+			// Emit tool_calls delta chunks at end of stream
+			for i, tc := range toolCalls {
+				tcDelta := map[string]interface{}{
+					"tool_calls": []map[string]interface{}{{
+						"index": i,
+						"id":    tc.ID,
+						"type":  "function",
+						"function": map[string]interface{}{
+							"name":      tc.Name,
+							"arguments": tc.Arguments,
+						},
+					}},
+				}
+				fmt.Fprint(w, translator.ChunkWith(tcDelta, nil))
+				if flusher != nil { flusher.Flush() }
+			}
+			fr := "tool_calls"
+			fmt.Fprint(w, translator.ChunkWith(map[string]interface{}{}, &fr))
+		} else {
+			fmt.Fprint(w, translator.FinishChunk())
+		}
 		fmt.Fprint(w, translator.DoneChunk())
 		if flusher != nil { flusher.Flush() }
 	} else {
+		reqCtx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+		eventCh := executor.StreamWithRetry(reqCtx, resolved, prompt, opts)
 		var thinking, answer strings.Builder
 		for item := range eventCh {
 			if item.Error != nil {

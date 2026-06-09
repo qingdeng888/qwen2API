@@ -23,6 +23,11 @@ func NewOpenAITranslator(model string) *OpenAITranslator {
 	return &OpenAITranslator{Model: model, RequestID: "chatcmpl-" + NewUUID()[:12]}
 }
 
+// NewOpenAIStreamTranslator is an alias for NewOpenAITranslator
+func NewOpenAIStreamTranslator(model string) *OpenAITranslator {
+	return NewOpenAITranslator(model)
+}
+
 func (t *OpenAITranslator) TranslateEvent(evt *upstream.StreamEvent) string {
 	if evt == nil || evt.Type != "delta" || evt.Content == "" {
 		return ""
@@ -53,6 +58,11 @@ func (t *OpenAITranslator) chunk(delta map[string]interface{}, finish *string) s
 	}
 	d, _ := json.Marshal(c)
 	return fmt.Sprintf("data: %s\n\n", d)
+}
+
+// ChunkWith is the exported version of chunk for use by handlers
+func (t *OpenAITranslator) ChunkWith(delta map[string]interface{}, finish *string) string {
+	return t.chunk(delta, finish)
 }
 
 // Non-stream response builder
