@@ -19,9 +19,11 @@ func ConsumeSSE(reader io.Reader, ch chan<- StreamEvent) {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 1<<20), 1<<20)
 
+	lineCount := 0
 	var buf strings.Builder
 	for scanner.Scan() {
 		line := scanner.Text()
+		lineCount++
 		if line == "" {
 			if buf.Len() > 0 {
 				for _, evt := range parseChunk(buf.String()) {
@@ -38,6 +40,12 @@ func ConsumeSSE(reader io.Reader, ch chan<- StreamEvent) {
 		for _, evt := range parseChunk(buf.String()) {
 			ch <- evt
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		ch <- StreamEvent{Type: "error", Content: "SSE read error: " + err.Error()}
+	}
+	if lineCount == 0 {
+		ch <- StreamEvent{Type: "error", Content: "SSE stream returned empty response"}
 	}
 }
 

@@ -163,6 +163,29 @@ func (p *AccountPool) FindByToken(token string) *Account {
 	return nil
 }
 
+func (p *AccountPool) FindByEmail(email string) *Account {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, acc := range p.accounts {
+		if acc.Email == email {
+			return acc
+		}
+	}
+	return nil
+}
+
+func (p *AccountPool) RemoveByEmail(email string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for i, acc := range p.accounts {
+		if acc.Email == email {
+			p.accounts = append(p.accounts[:i], p.accounts[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
 func (p *AccountPool) AddAccount(acc *Account) {
 	p.mu.Lock()
 	defer p.mu.Unlock()

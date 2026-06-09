@@ -150,6 +150,8 @@ func (c *QwenClient) StreamChat(ctx context.Context, token, chatID, model, conte
 	payload := BuildChatPayload(chatID, model, content, opts)
 	data, _ := json.Marshal(payload)
 
+	log.Printf("[上游] 发送流请求 chat_id=%s model=%s content_len=%d", chatID, model, len(content))
+
 	req, err := http.NewRequestWithContext(ctx, "POST", BaseURL+"/api/chat/completions", bytes.NewReader(data))
 	if err != nil {
 		return nil, err
@@ -161,19 +163,24 @@ func (c *QwenClient) StreamChat(ctx context.Context, token, chatID, model, conte
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		log.Printf("[上游] 流请求网络错误: %v", err)
 		return nil, err
 	}
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
+		log.Printf("[上游] 流请求HTTP错误 status=%d body=%s", resp.StatusCode, trunc(string(body), 300))
 		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, trunc(string(body), 200))
 	}
+
+	log.Printf("[上游] 流连接建立 chat_id=%s status=200", chatID)
 
 	ch := make(chan StreamEvent, 64)
 	go func() {
 		defer resp.Body.Close()
 		defer close(ch)
 		ConsumeSSE(resp.Body, ch)
+		log.Printf("[上游] 流结束 chat_id=%s", chatID)
 	}()
 	return ch, nil
 }

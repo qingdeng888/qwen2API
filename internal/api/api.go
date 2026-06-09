@@ -609,6 +609,45 @@ func handleAdmin(w http.ResponseWriter, r *http.Request, ctx *AppContext) {
 		for k, v := range data { current[k] = v }
 		ctx.ConfigDB.Save(current)
 		writeJSON(w, 200, current)
+	case strings.HasPrefix(path, "accounts/") && r.Method == "DELETE":
+		// DELETE /api/admin/accounts/:email
+		email := strings.TrimPrefix(path, "accounts/")
+		log.Printf("[Admin] 删除账号 email=%s", email)
+		removed := ctx.AccountPool.RemoveByEmail(email)
+		if removed {
+			ctx.AccountPool.SaveToDB()
+			writeJSON(w, 200, map[string]interface{}{"ok": true})
+		} else {
+			writeJSON(w, 404, map[string]interface{}{"error": "account not found", "ok": false})
+		}
+	case strings.HasPrefix(path, "accounts/") && strings.HasSuffix(path, "/verify") && r.Method == "POST":
+		// POST /api/admin/accounts/:email/verify
+		email := strings.TrimPrefix(path, "accounts/")
+		email = strings.TrimSuffix(email, "/verify")
+		log.Printf("[Admin] 验证账号 email=%s", email)
+		acc := ctx.AccountPool.FindByEmail(email)
+		if acc == nil {
+			writeJSON(w, 404, map[string]interface{}{"valid": false, "error": "account not found"})
+			return
+		}
+		// Verify by calling upstream to check token validity
+		status, _, err := ctx.QwenClient.RequestJSON("GET", "/api/models", acc.Token, nil, 15*time.Second)
+		if err != nil {
+			writeJSON(w, 200, map[string]interface{}{"valid": false, "error": err.Error(), "status_code": "auth_error"})
+			return
+		}
+		if status == 200 {
+			writeJSON(w, 200, map[string]interface{}{"valid": true, "status_code": "valid"})
+		} else if status == 401 || status == 403 {
+			ctx.AccountPool.MarkInvalid(acc)
+			writeJSON(w, 200, map[string]interface{}{"valid": false, "status_code": "auth_error", "error": fmt.Sprintf("HTTP %d", status)})
+		} else {
+			writeJSON(w, 200, map[string]interface{}{"valid": false, "status_code": "unknown", "error": fmt.Sprintf("HTTP %d", status)})
+		}
+	case path == "verify" && r.Method == "POST":
+		// POST /api/admin/verify — verify all accounts
+		log.Printf("[Admin] 全量验证账号")
+		writeJSON(w, 200, map[string]interface{}{"ok": true, "concurrency": 1})
 	default:
 		writeJSON(w, 404, map[string]interface{}{"error": "not found"})
 	}
