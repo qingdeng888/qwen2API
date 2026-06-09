@@ -150,9 +150,11 @@ func (c *QwenClient) StreamChat(ctx context.Context, token, chatID, model, conte
 	payload := BuildChatPayload(chatID, model, content, opts)
 	data, _ := json.Marshal(payload)
 
-	log.Printf("[上游] 发送流请求 chat_id=%s model=%s content_len=%d", chatID, model, len(content))
+	// 正确的上游端点：/api/v2/chat/completions?chat_id=xxx
+	streamURL := BaseURL + "/api/v2/chat/completions?chat_id=" + chatID
+	log.Printf("[上游] 发送流请求 url=%s model=%s content_len=%d", streamURL, model, len(content))
 
-	req, err := http.NewRequestWithContext(ctx, "POST", BaseURL+"/api/chat/completions", bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(ctx, "POST", streamURL, bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
