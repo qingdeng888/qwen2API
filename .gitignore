@@ -1,6 +1,6 @@
-# Binaries
-server
-qwen2api
+# Binaries (only at root level)
+/server
+/qwen2api
 *.exe
 
 # Data files
